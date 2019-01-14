@@ -1,0 +1,291 @@
+---
+title: "Fall-to-Fall Retention study (internal use)"
+author: "Jason Whittle"
+date: "8/16/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r, include=FALSE}
+require(tidyverse) || install.packages("tidyverse")
+require(plotly) || install.packages("plotly")
+library(tidyverse); theme_set(theme_minimal())
+library(plotly)
+```
+
+```{r, cache=T}
+# using a seperate scripts construction so that I can use a VM to fix two models at once. 
+# SQL script is: 'retention_pull.sql'
+data_1 <- read.csv("retention_test_20180725.csv")
+```
+
+```{r, cache=T, eval=T}
+# MLM model and elements.
+source('retention_MLM.R')
+```
+
+```{r, cache=T, eval=F}
+# RPART model and elements.
+source('retention_rpart.R')
+```
+
+```{r, cache=T, eval=T, include = F}
+# GBM tree model and elements
+source('retention_tree.R')
+```
+
+
+# Summary
+This study is intended to provide direction for retention modeling for both predictive and inferential modeling at Salt Lake Community College (SLCC). By identifying what are the most important variables in the data warehouse with regards to Fall-to-Fall retention, better regression analyses will be able to be conducted by more people within the Department of Data Science and Analytics (DDSA). This study will also provide baseline knowledge of one of the most critical goals at SLCC and inform our thinking on all studies related to student Fall-to-Fall retention. The results and modeling will be updated as new data becomes available. 
+
+# Results
+
++ Pacific Islanders and Native Americans have serious problems with Fall-to-Fall retention.
++ While SLCC enrollment is clearly counter-cyclical to the local labor market, retention follows an opposite pattern (increasing as the labor market strengthens). 
++ Utah County students are more likely to not retain compared to all other counties. 
++ CTE programs seems to promote Fall-to-Fall retention better than non-CTE programs.
+
+Methodology results:
+
++ Multi-level Modeling (MLM) still reigns as the best statistical modeling method for the types of data structures and questions SLCC encounters. The sheer amount of useful information obtainable from an MLM more than compensates for the slight forecasting advantage of random forest models. 
++ Random forest models are useful for prediction and require less forethought than regression models but they provide little useful information for policy purposes. Ranking variables in importance without any kind of significance testing, standard errors or potential effect size are significant pitfalls for DDSA uses. 
++ There are strong opportunities to utilize MLM for parameter searches and then use Machine learning (boosting) methods for predictions. 
+
+# Data
+
+The data for this study was pulled from the Department of Data Science and Analytics' (DDSA) data warehouse. Only first year students eighteen years and older for Fall semesters are considered in this study to avoid further complications. The first year at SLCC has the largest student attrition rate (around 50%) compared to other groups. By only including first year students serious issues with serial correlation are avoided. This study also excludes SLCC School of Applied Technology students (SAT) since the programs in SAT do not follow a typical academic calendar. All first year student enrollments starting in Spring 2009 (200920) and continued through Spring 2018 (201820) were included initially but for this initial phase of research only Fall-to-Fall enrollments will be measured. Enrollments from 2017 and 2018 were filtered out from the analysis since the outcome semesters had not happened at the time of the study. 
+
+
+
+# Methods
+
+Multiple statistical models were used to explore first year retention for several reasons. The first reason is that all models have limitations, using multiple methods and model types limits the impact these weaknesses will have on the final synthesized result. Second, the models used help control for different elements. For instance the multilevel models (MLM) can control for hierarchical, nested or multilevel data structures (like student major or student ethnicity) while the tree models will better handle variable interactions and will generally out-predict linear models. 
+
+## Multilevel Model
+
+Multi-level modeling was used to better isolate three variables: student ethnicity, student major and year. These three variables were entered into the MLM as a random effects meaning each unique value will have its own intercept term. For example for student ethnicity all individual ethnicity codes will be able to fluctuate and they will therefore be directly comparable to each other. These three variables were isolated for different reasons. 
+
+Some form of student ethnicity is usually included in DDSA's regression modeling of student outcomes like retention however the results are often inconsistent. If a model includes a "white vs non-white" binary variable the results are usually limited. If a model includes ethnicity as a factor variable the results lose some interpretability as all the estimated values are in comparison to the base level variable (usually the first factor alphabetically). While including ethnicity as a factor variable allows for direct comparisons to a base level it is less straightforward to interpret (compared to a random effect in a MLM) and makes interacting ethnicity with other explanatory variables messy. As a random variable in a MLM regression ethnicity is implicitly interacted with the other fixed effects (explanatory variables that are not allowed to vary by unique value). 
+
+Year has to be isolated and treated as a factor variable instead of as a continuous variable because we know that SLCC's enrollments are highly related to the local labor market which has undergone fairly extreme fluctuation since 2009. By allowing year to be a random effect the changes and differences in the local labor market from year to year are represented by these terms. Modeling fluctuations in the year to year labor market this way is very useful and should be explored in future SLCC research. 
+
+The data set was randomly split into 80/20 training/test data sets. The MLM models was trained and the variables were evaluated on the training data set. The test data set was used to evaluated predictive ability compared to the random forest models used later (GBM and Recursive partitioning).  
+
+## MLM results
+
+Results of interest from the MLM model:
+
++ Pacific Islander and Native American students are the Racial/Ethnic groups least likely to retain Fall-to-Fall. 
++ Black, Hispanic and Asian students are either **more** likely or **not different** from their white classmates in terms of Fall-to-Fall retention. 
++ While SLCC enrollment is clearly counter-cyclical with the local labor market, retention appears to follow a different pattern; increasing as the labor market strengthens.  
++ Utah County students are **less** likely to retain compared to Salt Lake County students. However, it is only Utah County that is statistically significantly different than Salt Lake County. 
++ Students within one year of attending High School are **more** likely to retain. 
++ Students with an 'A' High School GPA average are more likely to **not** retain while 'B' and 'C' average students are **more** likely to retain.
++ Students with a prior undergraduate GPA of a 'B' are the most likely to retain.
++ The better a students term GPA is in the first Fall semester the more likely they are to retain to the second Fall semester (shocking!)
++ Students not in a designated CTE program are **less** likely to retain. 
++ Full time students are **more** likely to retain.
++ This study confirms that female students are **more** likely to retain.
++ If a student is 'College ready' in Math they are **more** likely to retain. 'College ready' in English is not significant though. 
+
+### Year
+The intercept values are not directly interpretable (they are in log odds) they are useful for making relative comparisons by group. One thing that jumps out is that SLCC retention (returning in a subsequent semester) has an opposite relationship with the labor market than enrollments (enrolling at SLCC) have. Retention seems to follow the strength of the labor market. When unemployment was high retention for the College was lower and as the labor market has reached near 'full employment' levels retention has remained relatively higher. This is likely the result of unemployed persons using SLCC as a means to fill gaps in their resumes and have something to do while they are unemployed while not really entertaining long term academic goals. Once a student like this finds a job they stop enrolling. 
+
+Students who are choosing to enroll at SLCC in the very strong labor markets of the last 3-4 years are doing so not because they cannot find a job but because they have longer-term academic goals. 
+
+*Depending on the scope of future retention modeling and studies care need to be made to ensure that the cyclical nature of retetnion is addressed within the analysis method. Either a full panel design, MLM or in some cases a time-sereies model will be required. *
+
+```{r}
+
+year_ret <- year_ret + labs(y = "intercept", title = "Relative retention by year")
+ggplotly(year_ret)
+```
+
+
+### Ethnicity
+Retention rates vary by race/ethnicity but in a more complicated manner than has been previously thought at SLCC. The Binary 'white/non-white' indicator variable used in other studies has produced weak results because it appears there are several non-white races/ethnicities who out perform whites (in terms of retention) and then two who significantly under perform their white classmates. Students who identified as American Indian or Pacific Islander dramatically under perform the rest of SLCC. Pacific Islanders under perform so much as to be statistically significantly different at the 95% level from all other race/ethnicity groups with the sole exception of the other under performing group American Indian. 
+
+There is good news in this model for students at SLCC who identify as Black, Hispanic and Asian all of whom perform as well or better than the majority white student population. Retention efforts directed at Hispanic, Asian and Black students seem to be successful. More time series analysis of retention year over year has been done and should continue to be performed to monitor patters over time. One possible future application of MLM would be to interact Ethnicity and Year to track these changes over time while controlling for as many confounding factors as possible. 
+
+*It is clear from this study that more nuanced modeling of Ethnicity is required to tell the whole story and that binary "white" vs. "non-white" variables are inadeqate in modeling Fall-to-Fall retention. Idealy a MLM methodology should be implemented or at the very least a factor variable with "white" as the baseline should be included in any future retetion modeling at SLCC.* 
+
+```{r}
+eth_ret <- eth_ret + labs(x = "", y = "intercept", title = "Relative retention by ethnicity")
+eth_ret
+#ggplotly(eth_ret)
+```
+
+### Program
+
+There are a lot of programs at SLCC. This variable has to be controlled for not so much for program evaluation but to limit the impacts shorter programs might have on the other results in this study. Included below is an interactive plot with all the programs students in this study had listed as a major. Not much analysis of this has occurred however it was included as a random effect in the same fashion as Year and Ethnicity so relative impacts between programs could be assessed and summarized within a caterpillar plot. 
+
+One thing that needs to be addressed further is how more hands on programs like many of the CTE programs fair. There seems to be a retention benefit to work force oriented programs or programs that "are hands on". As will be seen in the MLM results below if a program did not have a CTE designation it was estimated to have a negative impact. 
+
+*Controlling for programs is still overwhelming. It would be useful to attempt to classify programs by primary instruction type, "apprenticship", "classroom" etc. for future modeling.*
+
+```{r, fig.height= 12}
+ggplotly(program_ret)
+```
+
+
+### Fixed effects results (all other control variables)
+
+Many of these variables only make sense in relation to each other, GPA's for instance are factor variables that require comparison to a base factor (such as 'A' or 'NA'). Because of the dependent nature of the coefficient interpretation the first table of results includes all the results many of which are not statistically significant. The second table below only contains the statistically significant results. The coefficient values are log-odds and there for not directly interpretable. However, they are all scaled and centered  so the sizes of the coefficients should be comparable each other. 
+
+Many of the key finding were presented above.
+
+```{r, include=FALSE}
+library(stargazer)
+stargazer(ret_glmer, title = "MLM Regression", single.row = T, ci.level = 0.95,  type = "html")
+
+```
+
+<table style="text-align:center"><caption><strong>MLM Regression</strong></caption>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td><em>Dependent variable:</em></td></tr>
+<tr><td></td><td colspan="1" style="border-bottom: 1px solid black"></td></tr>
+<tr><td style="text-align:left"></td><td>RETAINED</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Male</td><td>-0.175<sup>***</sup> (0.031)</td></tr>
+<tr><td style="text-align:left">Gender: Unknown</td><td>-0.883<sup>**</sup> (0.417)</td></tr>
+<tr><td style="text-align:left">Marital status: Divorced</td><td>0.018 (0.216)</td></tr>
+<tr><td style="text-align:left">Marital status: Married</td><td>0.064 (0.068)</td></tr>
+<tr><td style="text-align:left">Marital status: Separated</td><td>-0.153 (0.320)</td></tr>
+<tr><td style="text-align:left">Marital status: Single</td><td>0.041 (0.057)</td></tr>
+<tr><td style="text-align:left">Marital status: Widowed</td><td>1.000 (1.091)</td></tr>
+<tr><td style="text-align:left">Veteran: Yes</td><td>0.080 (0.085)</td></tr>
+<tr><td style="text-align:left">Veteran Dependent: Yes</td><td>-0.090 (0.224)</td></tr>
+<tr><td style="text-align:left">Refugee</td><td>-0.002 (0.195)</td></tr>
+<tr><td style="text-align:left">Text opt in</td><td>-0.040 (0.035)</td></tr>
+<tr><td style="text-align:left">College ready Math: Yes</td><td>0.283<sup>**</sup> (0.130)</td></tr>
+<tr><td style="text-align:left">College ready Math: No</td><td>0.140 (0.127)</td></tr>
+<tr><td style="text-align:left">College ready Engl: Yes</td><td>-0.010 (0.031)</td></tr>
+<tr><td style="text-align:left">Residency type: Resident</td><td>0.459<sup>***</sup> (0.066)</td></tr>
+<tr><td style="text-align:left">Degree seeking: Two-Year Degree</td><td>0.279<sup>**</sup> (0.123)</td></tr>
+<tr><td style="text-align:left">Ever concurrent: Yes</td><td>-0.080 (0.091)</td></tr>
+<tr><td style="text-align:left">First generation: Yes</td><td>-0.223<sup>***</sup> (0.043)</td></tr>
+<tr><td style="text-align:left">First generation: No</td><td>-0.220<sup>***</sup> (0.047)</td></tr>
+<tr><td style="text-align:left">Prior UG credits</td><td>-0.025<sup>***</sup> (0.003)</td></tr>
+<tr><td style="text-align:left">Full-Time</td><td>0.359<sup>***</sup> (0.029)</td></tr>
+<tr><td style="text-align:left">Pell eligible: Yes</td><td>0.036 (0.030)</td></tr>
+<tr><td style="text-align:left">High School one year: Yes</td><td>0.334<sup>***</sup> (0.035)</td></tr>
+<tr><td style="text-align:left">Continuing student: Yes</td><td>-0.020 (0.093)</td></tr>
+<tr><td style="text-align:left">First term non-concurrent: Yes</td><td>-0.136 (0.111)</td></tr>
+<tr><td style="text-align:left">First term ever: Yes</td><td>-0.183 (0.124)</td></tr>
+<tr><td style="text-align:left">Census Block Median Income</td><td>-0.007 (0.016)</td></tr>
+<tr><td style="text-align:left">Utah County</td><td>-0.395<sup>***</sup> (0.086)</td></tr>
+<tr><td style="text-align:left">Weber County</td><td>-0.701 (0.476)</td></tr>
+<tr><td style="text-align:left">Davis County</td><td>-0.079 (0.062)</td></tr>
+<tr><td style="text-align:left">Other County</td><td>0.027 (0.046)</td></tr>
+<tr><td style="text-align:left">High School GPA: A</td><td>-0.120<sup>*</sup> (0.070)</td></tr>
+<tr><td style="text-align:left">High School GPA: B</td><td>0.179<sup>***</sup> (0.042)</td></tr>
+<tr><td style="text-align:left">High School GPA: C</td><td>0.169<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">High School GPA: D</td><td>0.145 (0.206)</td></tr>
+<tr><td style="text-align:left">High School GPA: F</td><td>0.878 (1.623)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: A</td><td>0.180<sup>*</sup> (0.105)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: B</td><td>0.266<sup>**</sup> (0.104)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: C</td><td>0.154 (0.108)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: D</td><td>-0.178 (0.127)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: F</td><td>-0.715<sup>***</sup> (0.158)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: B</td><td>-0.212<sup>***</sup> (0.037)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: C</td><td>-0.777<sup>***</sup> (0.045)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: D</td><td>-1.646<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: F</td><td>-2.587<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: NA</td><td>-1.419<sup>***</sup> (0.080)</td></tr>
+<tr><td style="text-align:left">Census Block BS degree population</td><td>0.142 (0.252)</td></tr>
+<tr><td style="text-align:left">Age on first day</td><td>0.011 (0.018)</td></tr>
+<tr><td style="text-align:left">CTE: No</td><td>-0.132<sup>*</sup> (0.080)</td></tr>
+<tr><td style="text-align:left">Constant</td><td>0.049 (0.240)</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>26,636</td></tr>
+<tr><td style="text-align:left">Log Likelihood</td><td>-15,844.610</td></tr>
+<tr><td style="text-align:left">Akaike Inf. Crit.</td><td>31,795.210</td></tr>
+<tr><td style="text-align:left">Bayesian Inf. Crit.</td><td>32,229.280</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"><em>Note:</em></td><td style="text-align:right"><sup>*</sup>p<0.1; <sup>**</sup>p<0.05; <sup>***</sup>p<0.01</td></tr>
+</table>
+
+### Only significantly significant MLM fixed effect results
+
+The statistically significant results are included below just for quicker reference. Theses results are specific to the full model above. 
+
+<table style="text-align:center"><caption><strong>MLM Regression</strong></caption>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td><em>Dependent variable:</em></td></tr>
+<tr><td></td><td colspan="1" style="border-bottom: 1px solid black"></td></tr>
+<tr><td style="text-align:left"></td><td>RETAINED</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Male</td><td>-0.175<sup>***</sup> (0.031)</td></tr>
+<tr><td style="text-align:left">Gender: Unknown</td><td>-0.883<sup>**</sup> (0.417)</td></tr>
+<tr><td style="text-align:left">College ready Math: Yes</td><td>0.283<sup>**</sup> (0.130)</td></tr>
+<tr><td style="text-align:left">Residency type: Resident</td><td>0.459<sup>***</sup> (0.066)</td></tr>
+<tr><td style="text-align:left">Degree seeking: Two-Year Degree</td><td>0.279<sup>**</sup> (0.123)</td></tr>
+<tr><td style="text-align:left">First generation: Yes</td><td>-0.223<sup>***</sup> (0.043)</td></tr>
+<tr><td style="text-align:left">First generation: No</td><td>-0.220<sup>***</sup> (0.047)</td></tr>
+<tr><td style="text-align:left">Prior UG credits</td><td>-0.025<sup>***</sup> (0.003)</td></tr>
+<tr><td style="text-align:left">Full-Time</td><td>0.359<sup>***</sup> (0.029)</td></tr>
+<tr><td style="text-align:left">High School one year: Yes</td><td>0.334<sup>***</sup> (0.035)</td></tr>
+<tr><td style="text-align:left">Utah County</td><td>-0.395<sup>***</sup> (0.086)</td></tr>
+<tr><td style="text-align:left">High School GPA: A</td><td>-0.120<sup>*</sup> (0.070)</td></tr>
+<tr><td style="text-align:left">High School GPA: B</td><td>0.179<sup>***</sup> (0.042)</td></tr>
+<tr><td style="text-align:left">High School GPA: C</td><td>0.169<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: A</td><td>0.180<sup>*</sup> (0.105)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: B</td><td>0.266<sup>**</sup> (0.104)</td></tr>
+<tr><td style="text-align:left">Prior UG GPA: F</td><td>-0.715<sup>***</sup> (0.158)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: B</td><td>-0.212<sup>***</sup> (0.037)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: C</td><td>-0.777<sup>***</sup> (0.045)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: D</td><td>-1.646<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: F</td><td>-2.587<sup>***</sup> (0.057)</td></tr>
+<tr><td style="text-align:left">Term UG GPA: NA</td><td>-1.419<sup>***</sup> (0.080)</td></tr>
+<tr><td style="text-align:left">CTE: No</td><td>-0.132<sup>*</sup> (0.080)</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>26,636</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"><em>Note:</em></td><td style="text-align:right"><sup>*</sup>p<0.1; <sup>**</sup>p<0.05; <sup>***</sup>p<0.01</td></tr>
+</table>
+
+<!-- ## Recrusive Partitioning and Regression Tree -->
+
+<!-- The rpart package was used to fit a single tree model. This has advantages over the other regression tree modeling method discussed below and the MLM method discussed previously by being relatively fast to fit, having straight forward output and providing a baseline for feature selection. -->
+
+<!-- Tree models are essentially nested if-else statements that partition the data in a manner to iteratively split the data at critical values into sub-models. These sub-models will have a similar search process conducted on the reamining set of variables within each of them. Tree models are typically penalized for the number of parameters and rewarded for explanatory power (usually evaluated by reduction in standard deviation) via a cost-benefit calculation.  -->
+
+<!-- If a variable is not selected in the process those data are not used in the model. This means trees automatically perform feature selection (the process of discovering what are the important variables), this is very useful for selecting variables that policy makers could use at the college. Unlike a linear regression model where statistical significance tests need to be considered along with coefficeint magnitude for variable importance tree models by default provide a list of the most important variables and estimates a model that only includes those variables.  -->
+
+<!-- The data was randomly split 80/20 into training/test data sets. The rpart model was then trained on a ten-folds cross-validated sample using the caret package. Cross validation further split the training data set into 5 random and equal sized partitions that were used for training and testing. The difference with the cross validation data spliting that occurs within the caret package as opposed to the 80/20 initial data split, is that the test-partitions are used to readjust the model where as the test data set will only be used once at the end to measure total rprart model performance.  -->
+
+<!-- ### rpart results -->
+
+## Generalized Boosted Regression Model
+
+The GBM package standing for Generalized Boosted Regression Modeling fits ensemble tree models which help avoid the two major weakness in singe tree models: model instability and weak predictive performance. By combining many different tree models there is a reduction in the specification instability and thus more predictive ability. GBM will iteratively interact the variables together thus "coefficient" interpretation are nearly impossible since all values are dependent on the other values. We can however look the variables' relative influence in this process which can be useful. 
+
+### GBM Results
+
+Based on the relative influence of the variables included in this study (This information will be presented at the end of the page):
+
++ Scoring less than a 'B' in the first Fall term is very important for retention. In fact failing in the term is by far the biggest indicator that a student will not retain. 
++ Both the Census Block variables have relatively high influence in the GBM. These variables have often come up as 'insignificant' in most of the regression models we have used them in. 
++ Being male just as in the MLM model is shown to be an important factor in retention.
++ Being a full-time student
+
+### GBM prediciton
+
+The ability to target vulnerable first year students is important for many potential retention efforts. The confusion matrix below shows that the GBM model correctly predicts if a student will retain or not 67.5% on the test set. 
+
+```{r}
+library(caret)
+confusionMatrix(gbm_ret_pred, gbm_data_test$RETAINED)
+```
+
+
+### GBM tunning
+
+
+```{r}
+plot(gbm_ret)
+```
+
+
+### GBM results 
+
+```{r, cache=TRUE}
+knitr::kable(summary(gbm_ret, cBars = 30, plotit = T, yaxt = 'n' )[2], digits = 2)
+```
